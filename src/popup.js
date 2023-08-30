@@ -1,112 +1,32 @@
-'use strict';
+function sendTweet(courseTitle, remainingTime, courseDescription, courseUrl) {
+    const tweetText = encodeURIComponent(
+        `I've only got ${remainingTime} left to finish ${courseTitle} on Udemy! Learn ${courseDescription}! ${courseUrl}`
+    );
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}`;
+    window.open(twitterUrl, '_blank');
+}
 
-import './popup.css';
+document.addEventListener("DOMContentLoaded", () => {
+    chrome.tabs.executeScript({
+        file: 'udemyTimeCalculator.js'
+    }, ([results] = []) => {
+        if (results) {
+            const { title, description, remainingTime, url } = results;
 
-(function() {
-  // We will make use of Storage API to get and store `count` value
-  // More information on Storage API can we found at
-  // https://developer.chrome.com/extensions/storage
+            document.getElementById('courseTitle').textContent = title;
+            document.getElementById('courseDescription').textContent = description;
+            document.getElementById('remainingTime').textContent = remainingTime;
 
-  // To get storage access, we have to mention it in `permissions` property of manifest.json file
-  // More information on Permissions can we found at
-  // https://developer.chrome.com/extensions/declare_permissions
-  const counterStorage = {
-    get: cb => {
-      chrome.storage.sync.get(['count'], result => {
-        cb(result.count);
-      });
-    },
-    set: (value, cb) => {
-      chrome.storage.sync.set(
-        {
-          count: value,
-        },
-        () => {
-          cb();
+            const twitterShareElement = document.getElementById('twitterShare');
+            twitterShareElement.addEventListener('click', (e) => {
+                e.preventDefault(); // Prevents the default link behavior
+                sendTweet(title, remainingTime, description, url);
+            });
+        } else {
+            const errorMessageElement = document.getElementById('errorMessage');
+            errorMessageElement.style.display = "block";
+            errorMessageElement.textContent = "Unable to fetch course details. Please ensure you're on a valid Udemy course page.";
         }
-      );
-    },
-  };
-
-  function setupCounter(initialValue = 0) {
-    document.getElementById('counter').innerHTML = initialValue;
-
-    document.getElementById('incrementBtn').addEventListener('click', () => {
-      updateCounter({
-        type: 'INCREMENT',
-      });
     });
+});
 
-    document.getElementById('decrementBtn').addEventListener('click', () => {
-      updateCounter({
-        type: 'DECREMENT',
-      });
-    });
-  }
-
-  function updateCounter({ type }) {
-    counterStorage.get(count => {
-      let newCount;
-
-      if (type === 'INCREMENT') {
-        newCount = count + 1;
-      } else if (type === 'DECREMENT') {
-        newCount = count - 1;
-      } else {
-        newCount = count;
-      }
-
-      counterStorage.set(newCount, () => {
-        document.getElementById('counter').innerHTML = newCount;
-
-        // Communicate with content script of
-        // active tab by sending a message
-        chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-          const tab = tabs[0];
-
-          chrome.tabs.sendMessage(
-            tab.id,
-            {
-              type: 'COUNT',
-              payload: {
-                count: newCount,
-              },
-            },
-            response => {
-              console.log('Current count value passed to contentScript file');
-            }
-          );
-        });
-      });
-    });
-  }
-
-  function restoreCounter() {
-    // Restore count value
-    counterStorage.get(count => {
-      if (typeof count === 'undefined') {
-        // Set counter value as 0
-        counterStorage.set(0, () => {
-          setupCounter(0);
-        });
-      } else {
-        setupCounter(count);
-      }
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded', restoreCounter);
-
-  // Communicate with background file by sending a message
-  chrome.runtime.sendMessage(
-    {
-      type: 'GREETINGS',
-      payload: {
-        message: 'Hello, my name is Pop. I am from Popup.',
-      },
-    },
-    response => {
-      console.log(response.message);
-    }
-  );
-})();
